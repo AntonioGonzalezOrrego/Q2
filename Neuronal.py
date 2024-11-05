@@ -27,7 +27,7 @@ X_train_nn, X_test_nn, y_train_nn, y_test_nn = train_test_split(X_scaled, y_scal
 
 # Definir el modelo de la red neuronal
 model = tf.keras.Sequential([
-    tf.keras.Input(shape=(1,)),              # Nueva forma de definir el input
+    tf.keras.Input(shape=(1,)),              
     tf.keras.layers.Dense(10, activation='relu'),
     tf.keras.layers.Dense(10, activation='relu'),
     tf.keras.layers.Dense(1)
@@ -50,8 +50,8 @@ y_test_nn_rescaled = scaler.inverse_transform(y_test_nn)
 nn_mse = mean_squared_error(y_test_nn_rescaled, y_pred_nn_rescaled)
 nn_r2 = r2_score(y_test_nn_rescaled, y_pred_nn_rescaled)
 
-print("MSE de la Red Neuronal:", nn_mse)
-print("R² de la Red Neuronal:", nn_r2)
+print("Error Cuadratico Medio de la Red Neuronal:", nn_mse)
+print("Coeficiente de Determinación de la Red Neuronal:", nn_r2)
 
 # Visualización del desempeño del modelo
 import matplotlib.pyplot as plt
