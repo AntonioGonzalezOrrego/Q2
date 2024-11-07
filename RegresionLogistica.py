@@ -1,63 +1,55 @@
 import pandas as pd
 import matplotlib.pyplot as plt
+import seaborn as sns
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
+import numpy as np
 
-# Cargar y preparar los datos
-file_path = r'C:\Users\Admin\Documents\IA\Q2\BaseDatosFacturaElectronica.csv'
-new_data = pd.read_csv(file_path)
-new_data['documentoFecha'] = pd.to_datetime(new_data['documentoFecha'], errors='coerce')
-new_data['dia'] = new_data['documentoFecha'].dt.day
-
-# Crear variable objetivo binaria para "Documento Rechazado"
-new_data['rechazado'] = new_data['documentoEstadoDIAN'].apply(lambda x: 1 if x == 'Documento Rechazado' else 0)
-
-# Seleccionar características y objetivo para la regresión logística
-X_rejection = new_data[['dia', 'documentoTipo']]
-y_rejection = new_data['rechazado']
-
-# Separar en entrenamiento y prueba
-X_rej_train, X_rej_test, y_rej_train, y_rej_test = train_test_split(X_rejection, y_rejection, test_size=0.3, random_state=0)
+# Cargar los datos y prepararlos (como en el código anterior)
+file_path = r'C:\Archivos\Expanded_BaseDatosProductivoFacturaElectronica3.csv'
+data = pd.read_csv(file_path)
+data['documentoFecha'] = pd.to_datetime(data['documentoFecha'], errors='coerce')
+data_october = data[(data['documentoFecha'].dt.year == 2024) & (data['documentoFecha'].dt.month == 10)]
+data_october['dia'] = data_october['documentoFecha'].dt.day
+data_october['rechazado'] = data_october['documentoEstadoDIAN'].apply(lambda x: 1 if x == 'Documento Rechazado' else 0)
 
 # Entrenar el modelo de regresión logística
-log_reg_rejection = LogisticRegression(max_iter=200)
-log_reg_rejection.fit(X_rej_train, y_rej_train)
+X_rejection = data_october[['dia', 'documentoTipo']].copy()
+y_rejection = data_october['rechazado']
+X_train, X_test, y_train, y_test = train_test_split(X_rejection, y_rejection, test_size=0.3, random_state=0)
+log_reg = LogisticRegression(max_iter=200)
+log_reg.fit(X_train, y_train)
 
-# Calcular el promedio diario de documentos por tipo
-average_daily_documents_by_type = new_data.groupby('documentoTipo')['dia'].count() / len(new_data['dia'].unique())
+# Crear proyecciones para el día 29
+doc_types = data_october['documentoTipo'].unique()
+X_pred = pd.DataFrame({'dia': [29] * len(doc_types), 'documentoTipo': doc_types})
+predictions_29 = log_reg.predict_proba(X_pred)[:, 1]
+average_daily_docs_by_type = data_october.groupby('documentoTipo')['dia'].count() / len(data_october['dia'].unique())
+proj_rejections_29 = average_daily_docs_by_type[doc_types] * predictions_29
 
-# Generar proyecciones de rechazo por tipo de documento para los días 29 y 30 de octubre
-projection_by_type = pd.DataFrame(columns=['documentoTipo', 'rechazo_prob', 'proj_rejections_29', 'proj_rejections_30'])
-for doc_type in average_daily_documents_by_type.index:
-    X_type = pd.DataFrame({'dia': [29, 30], 'documentoTipo': [doc_type, doc_type]})
-    rejection_prob = log_reg_rejection.predict_proba(X_type)[:, 1]
-    proj_rejections_29 = average_daily_documents_by_type[doc_type] * rejection_prob[0]
-    proj_rejections_30 = average_daily_documents_by_type[doc_type] * rejection_prob[1]
-    
-    # Crear un DataFrame temporal y concatenarlo con `projection_by_type`
-    temp_df = pd.DataFrame({
-        'documentoTipo': [doc_type],
-        'rechazo_prob': [rejection_prob[0]],
-        'proj_rejections_29': [proj_rejections_29],
-        'proj_rejections_30': [proj_rejections_30]
-    })
-    
-    projection_by_type = pd.concat([projection_by_type, temp_df], ignore_index=True)
+# Crear un DataFrame para visualización
+projection_df = pd.DataFrame({
+    'documentoTipo': doc_types,
+    'rechazos_proyectados_29': proj_rejections_29
+})
 
+# Convertir 'documentoTipo' a una categoría ordenada para mejorar la distribución
+projection_df['documentoTipo'] = projection_df['documentoTipo'].astype(str)
+projection_df = projection_df.sort_values('rechazos_proyectados_29', ascending=False)  # Ordenar para mejor visualización
 
-# Convertir documentoTipo a entero para visualización
-doc_types = projection_by_type['documentoTipo'].astype(int)
-proj_rej_29 = projection_by_type['proj_rejections_29']
-proj_rej_30 = projection_by_type['proj_rejections_30']
+# Graficar con seaborn para mejorar la distribución de las barras
+plt.figure(figsize=(12, 8))
+ax = sns.barplot(x='documentoTipo', y='rechazos_proyectados_29', data=projection_df, color='steelblue')
+ax.set_xlabel('Tipo de Documento')
+ax.set_ylabel('Proyección de Documentos Rechazados')
+ax.set_title('Proyección de Documentos Rechazados por Tipo para Octubre 29')
 
-# Gráfica para el 29 de octubre
-plt.figure(figsize=(10, 6))
-plt.bar(doc_types, proj_rej_29, color='steelblue')
-plt.xlabel('Tipo de Documento')
-plt.ylabel('Proyección de Documentos Rechazados')
-plt.title('Proyección de Documentos Rechazados por Tipo para Octubre 29')
-plt.ylim(0, max(proj_rej_29) * 1.5)
-plt.xticks(doc_types, rotation=45, ha='right')
-plt.grid(axis='y', linestyle='--', alpha=0.7)
+# Añadir etiquetas encima de cada barra
+for p in ax.patches:
+    height = p.get_height()
+    ax.annotate(f'{int(height)}', (p.get_x() + p.get_width() / 2, height),
+                ha='center', va='bottom')
+
+plt.xticks(rotation=45, ha='right')
 plt.tight_layout()
 plt.show()
